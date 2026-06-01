@@ -2,7 +2,7 @@
 
 AI-PM 是一个**本地智能项目管理软件**，结合 AI 能力辅助产品和技术团队管理研发全链路。它会学习、沉淀、推荐历史方案，成为项目管理的智能伙伴。
 
-> 🌐 开源地址：https://github.com/luosilan/ai-pm（待创建）
+> 🌐 开源地址：https://github.com/Rocket-code427/ai-pm
 > 💻 适用平台：macOS / Windows / Linux
 > 🤖 AI 依赖：本地 Whisper + LLM API（Kimi/Qwen/OpenAI）
 
