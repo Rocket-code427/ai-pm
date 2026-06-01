@@ -83,11 +83,11 @@ def run_ai_engine(audio_path: str, output_dir: str, model: str = "small") -> dic
     return {}
 
 def generate_requirement_from_meeting(meeting_file: Path, project_dir: Path) -> Path:
-    """将会议纪要自动转为需求文档（草稿）"""
+    """将会议纪要自动转为需求文档（草稿），LLM 清洗修正"""
     # 读取会议纪要
     content = meeting_file.read_text(encoding="utf-8")
     
-    # 提取标题和核心内容
+    # 提取标题
     title_match = re.search(r'# 会议纪要：(.+)', content)
     date = title_match.group(1) if title_match else datetime.now().strftime("%Y-%m-%d")
     
@@ -120,6 +120,55 @@ def generate_requirement_from_meeting(meeting_file: Path, project_dir: Path) -> 
     
     if not req_name:
         req_name = f"需求-{date}"
+    
+    # LLM 清洗修正
+    try:
+        import sys
+        backend_dir = str(PROJECT_ROOT / "backend")
+        if backend_dir not in sys.path:
+            sys.path.insert(0, backend_dir)
+        from ai_engine import get_llm_config, call_llm
+        
+        config = get_llm_config()
+        if config:
+            prompt = f"""请检查并修正以下从会议纪要提取的需求内容。对于明显的笔误、常识性错误或不通顺的术语，进行合理修正并标注。
+
+原始内容：
+- 摘要：{summary_text[:500]}
+- 议题：{topic_text[:500]}
+- 决策：{decision_text[:500]}
+- 待办：{todo_text[:500]}
+- 技术特征：{tech_features_text[:500]}
+
+请返回修正后的内容，格式如下（纯文本，不要 markdown 代码块）：
+
+摘要：修正后的摘要
+议题：修正后的议题列表
+决策：修正后的决策列表
+待办：修正后的待办列表
+技术特征：修正后的技术特征
+
+注意：
+- 只修正明显的错误（如"蓝牙Black协议"应为"蓝牙BLE协议"）
+- 不要添加原文未提及的新内容
+- 如果没有明显错误，直接返回原文
+"""
+            llm_result = call_llm(prompt, config)
+            if llm_result:
+                # 解析 LLM 返回
+                for line in llm_result.split('\n'):
+                    if line.startswith('摘要：') and len(line) > 4:
+                        summary_text = line[3:].strip()
+                    elif line.startswith('议题：') and len(line) > 4:
+                        topic_text = line[3:].strip()
+                    elif line.startswith('决策：') and len(line) > 4:
+                        decision_text = line[3:].strip()
+                    elif line.startswith('待办：') and len(line) > 4:
+                        todo_text = line[3:].strip()
+                    elif line.startswith('技术特征：') and len(line) > 6:
+                        tech_features_text = line[5:].strip()
+    except Exception as e:
+        print(f"⚠️ 需求 LLM 修正失败: {e}")
     
     # 生成需求文档
     req_slug = slugify(req_name)
