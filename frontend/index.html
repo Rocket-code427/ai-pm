@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI-PM - 智能项目管理</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .project-card { transition: all 0.3s ease; }
+        .project-card:hover { transform: translateY(-2px); box-shadow: 0 10px 40px rgba(0,0,0,0.1); }
+        .stage-badge { font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 9999px; }
+        .ai-assistant { position: fixed; right: 20px; bottom: 20px; z-index: 50; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- 顶部导航 -->
+    <nav class="bg-white shadow-sm border-b">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <i class="fas fa-robot text-blue-600 text-2xl mr-3"></i>
+                    <span class="text-xl font-bold text-gray-900">AI-PM</span>
+                    <span class="ml-2 text-sm text-gray-500">智能项目管理</span>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button onclick="showAIStatus()" class="text-gray-500 hover:text-gray-700">
+                        <i class="fas fa-brain"></i> AI状态
+                    </button>
+                    <button onclick="showSettings()" class="text-gray-500 hover:text-gray-700">
+                        <i class="fas fa-cog"></i> 设置
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主内容 -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- 标题栏 + 创建按钮 -->
+        <div class="flex justify-between items-center mb-8">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">项目面板</h1>
+                <p class="text-sm text-gray-500 mt-1">所有项目一览，AI 辅助管理研发全链路</p>
+            </div>
+            <button onclick="showCreateProject()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center">
+                <i class="fas fa-plus mr-2"></i> 创建项目
+            </button>
+        </div>
+
+        <!-- 统计卡片 -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+            <div class="bg-white p-4 rounded-lg shadow-sm">
+                <div class="text-2xl font-bold text-blue-600" id="stat-total">0</div>
+                <div class="text-sm text-gray-500">总项目</div>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow-sm">
+                <div class="text-2xl font-bold text-green-600" id="stat-active">0</div>
+                <div class="text-sm text-gray-500">进行中</div>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow-sm">
+                <div class="text-2xl font-bold text-purple-600" id="stat-meetings">0</div>
+                <div class="text-sm text-gray-500">会议纪要</div>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow-sm">
+                <div class="text-2xl font-bold text-orange-600" id="stat-prd">0</div>
+                <div class="text-sm text-gray-500">PRD文档</div>
+            </div>
+        </div>
+
+        <!-- 项目列表 -->
+        <div id="project-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- 动态加载 -->
+        </div>
+
+        <!-- 空状态 -->
+        <div id="empty-state" class="hidden text-center py-20">
+            <i class="fas fa-folder-open text-6xl text-gray-300 mb-4"></i>
+            <p class="text-gray-500">暂无项目，点击右上角创建第一个项目</p>
+        </div>
+    </main>
+
+    <!-- 创建项目弹窗 -->
+    <div id="create-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+        <div class="bg-white rounded-lg p-6 w-full max-w-md">
+            <h2 class="text-xl font-bold mb-4">创建新项目</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">项目名称</label>
+                    <input type="text" id="project-name" class="w-full border rounded-lg px-3 py-2" placeholder="例如：智能家居App">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">项目描述</label>
+                    <textarea id="project-desc" class="w-full border rounded-lg px-3 py-2" rows="3" placeholder="简要描述项目目标和范围"></textarea>
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button onclick="hideCreateProject()" class="px-4 py-2 text-gray-600 hover:text-gray-800">取消</button>
+                    <button onclick="createProject()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">创建</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI 助手浮动按钮 -->
+    <div class="ai-assistant">
+        <button onclick="toggleAIChat()" class="bg-blue-600 text-white w-14 h-14 rounded-full shadow-lg hover:bg-blue-700 flex items-center justify-center">
+            <i class="fas fa-robot text-xl"></i>
+        </button>
+    </div>
+
+    <!-- AI 聊天面板 -->
+    <div id="ai-chat-panel" class="hidden fixed right-20 bottom-20 w-96 h-96 bg-white rounded-lg shadow-2xl z-50 flex flex-col">
+        <div class="bg-blue-600 text-white p-3 rounded-t-lg flex justify-between items-center">
+            <span class="font-bold"><i class="fas fa-robot mr-2"></i>AI 助手</span>
+            <button onclick="toggleAIChat()" class="text-white hover:text-gray-200"><i class="fas fa-times"></i></button>
+        </div>
+        <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-3">
+            <div class="bg-gray-100 p-3 rounded-lg text-sm">
+                <p>你好！我是 AI-PM 助手。</p>
+                <p class="mt-1">你可以问我：</p>
+                <ul class="list-disc list-inside mt-1 text-gray-600">
+                    <li>创建新项目</li>
+                    <li>分析历史方案</li>
+                    <li>推荐技术选型</li>
+                </ul>
+            </div>
+        </div>
+        <div class="p-3 border-t">
+            <div class="flex space-x-2">
+                <input type="text" id="chat-input" class="flex-1 border rounded-lg px-3 py-2 text-sm" placeholder="输入问题...">
+                <button onclick="sendChat()" class="bg-blue-600 text-white px-3 py-2 rounded-lg"><i class="fas fa-paper-plane"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/app.js"></script>
+</body>
+</html>

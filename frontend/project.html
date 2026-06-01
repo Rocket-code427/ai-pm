@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>项目工作台 - AI-PM</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- 顶部导航 -->
+    <nav class="bg-white shadow-sm border-b">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <a href="/" class="text-gray-500 hover:text-gray-700 mr-4">
+                        <i class="fas fa-arrow-left"></i> 返回
+                    </a>
+                    <i class="fas fa-project-diagram text-blue-600 text-xl mr-3"></i>
+                    <span id="project-name" class="text-xl font-bold text-gray-900">项目名</span>
+                    <span id="project-status" class="ml-3 px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">进行中</span>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button onclick="showAIAssistant()" class="text-blue-600 hover:text-blue-700">
+                        <i class="fas fa-robot"></i> AI助手
+                    </button>
+                    <button onclick="showProjectSettings()" class="text-gray-500 hover:text-gray-700">
+                        <i class="fas fa-cog"></i> 设置
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主内容 -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <!-- 项目信息 -->
+        <div class="bg-white rounded-lg shadow-sm p-4 mb-6">
+            <p id="project-desc" class="text-gray-600">项目描述...</p>
+            <div class="flex mt-2 text-sm text-gray-500 space-x-4">
+                <span><i class="far fa-calendar mr-1"></i> 创建: <span id="project-date">-</span></span>
+                <span><i class="fas fa-tag mr-1"></i> 技术: <span id="project-tech">-</span></span>
+                <span><i class="fas fa-palette mr-1"></i> UI: <span id="project-ui">-</span></span>
+            </div>
+        </div>
+
+        <!-- 工作流阶段导航 -->
+        <div class="flex space-x-2 mb-6 overflow-x-auto">
+            <button onclick="switchStage('requirements')" class="stage-btn active px-4 py-2 rounded-lg bg-blue-600 text-white text-sm whitespace-nowrap" data-stage="requirements">
+                <i class="fas fa-file-alt mr-1"></i> 需求 <span id="count-requirements" class="ml-1 bg-white bg-opacity-20 px-1.5 rounded text-xs">0</span>
+            </button>
+            <button onclick="switchStage('meetings')" class="stage-btn px-4 py-2 rounded-lg bg-gray-200 text-gray-700 text-sm whitespace-nowrap" data-stage="meetings">
+                <i class="fas fa-microphone mr-1"></i> 会议纪要 <span id="count-meetings" class="ml-1 bg-gray-300 px-1.5 rounded text-xs">0</span>
+            </button>
+            <button onclick="switchStage('prd')" class="stage-btn px-4 py-2 rounded-lg bg-gray-200 text-gray-700 text-sm whitespace-nowrap" data-stage="prd">
+                <i class="fas fa-book mr-1"></i> PRD <span id="count-prd" class="ml-1 bg-gray-300 px-1.5 rounded text-xs">0</span>
+            </button>
+            <button onclick="switchStage('ui')" class="stage-btn px-4 py-2 rounded-lg bg-gray-200 text-gray-700 text-sm whitespace-nowrap" data-stage="ui">
+                <i class="fas fa-desktop mr-1"></i> UI原型 <span id="count-ui" class="ml-1 bg-gray-300 px-1.5 rounded text-xs">0</span>
+            </button>
+            <button onclick="switchStage('testcases')" class="stage-btn px-4 py-2 rounded-lg bg-gray-200 text-gray-700 text-sm whitespace-nowrap" data-stage="testcases">
+                <i class="fas fa-vial mr-1"></i> 测试用例 <span id="count-testcases" class="ml-1 bg-gray-300 px-1.5 rounded text-xs">0</span>
+            </button>
+            <button onclick="switchStage('automation')" class="stage-btn px-4 py-2 rounded-lg bg-gray-200 text-gray-700 text-sm whitespace-nowrap" data-stage="automation">
+                <i class="fas fa-robot mr-1"></i> 自动化 <span id="count-automation" class="ml-1 bg-gray-300 px-1.5 rounded text-xs">0</span>
+            </button>
+        </div>
+
+        <!-- 阶段内容区 -->
+        <div class="bg-white rounded-lg shadow-sm min-h-[500px]">
+            <!-- 需求阶段 -->
+            <div id="stage-requirements" class="stage-content p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-bold">需求文档</h2>
+                    <div class="space-x-2">
+                        <button onclick="uploadFile('requirements')" class="px-3 py-1.5 bg-gray-100 rounded-lg text-sm hover:bg-gray-200">
+                            <i class="fas fa-upload mr-1"></i> 上传
+                        </button>
+                        <button onclick="aiGenerate('requirements')" class="px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-sm hover:bg-blue-200">
+                            <i class="fas fa-magic mr-1"></i> AI生成
+                        </button>
+                    </div>
+                </div>
+                <div id="list-requirements" class="space-y-2">
+                    <!-- 动态加载 -->
+                </div>
+            </div>
+
+    <!-- 会议纪要阶段 -->
+            <div id="stage-meetings" class="stage-content p-6 hidden">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-bold">会议纪要</h2>
+                    <div class="space-x-2">
+                        <button onclick="uploadMeeting()" class="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
+                            <i class="fas fa-microphone mr-1"></i> 上传录音
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 转录状态提示 -->
+                <div id="meeting-status" class="hidden mb-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <p id="meeting-status-text" class="text-sm text-blue-700">
+                        <i class="fas fa-spinner fa-spin mr-1"></i> 正在转录...
+                    </p>
+                </div>
+                
+                <div id="list-meetings" class="space-y-2">
+                    <!-- 动态加载 -->
+                </div>
+            </div>
+
+            <!-- PRD 阶段 -->
+            <div id="stage-prd" class="stage-content p-6 hidden">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-bold">PRD 文档</h2>
+                    <div class="space-x-2">
+                        <button onclick="uploadFile('prd')" class="px-3 py-1.5 bg-gray-100 rounded-lg text-sm hover:bg-gray-200">
+                            <i class="fas fa-upload mr-1"></i> 上传
+                        </button>
+                        <button onclick="generatePRD()" class="px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-sm hover:bg-blue-200">
+                            <i class="fas fa-magic mr-1"></i> 从需求生成
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- PRD 生成状态 -->
+                <div id="prd-status" class="hidden mb-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <p id="prd-status-text" class="text-sm text-blue-700">
+                        <i class="fas fa-spinner fa-spin mr-1"></i> 正在生成 PRD...
+                    </p>
+                </div>
+                
+                <div id="list-prd" class="space-y-2">
+                    <!-- 动态加载 -->
+                </div>
+            </div>
+
+            <!-- UI 阶段 -->
+            <div id="stage-ui" class="stage-content p-6 hidden">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-bold">UI 原型</h2>
+                    <div class="space-x-2">
+                        <button onclick="uploadFile('ui')" class="px-3 py-1.5 bg-gray-100 rounded-lg text-sm hover:bg-gray-200">
+                            <i class="fas fa-upload mr-1"></i> 上传HTML
+                        </button>
+                        <button onclick="uploadDesign()" class="px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg text-sm hover:bg-purple-200">
+                            <i class="fas fa-image mr-1"></i> 设计稿→HTML
+                        </button>
+                    </div>
+                </div>
+                <div id="list-ui" class="space-y-2">
+                    <!-- 动态加载 -->
+                </div>
+            </div>
+
+            <!-- 测试用例阶段 -->
+            <div id="stage-testcases" class="stage-content p-6 hidden">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-bold">测试用例</h2>
+                    <div class="space-x-2">
+                        <button onclick="uploadFile('testcases')" class="px-3 py-1.5 bg-gray-100 rounded-lg text-sm hover:bg-gray-200">
+                            <i class="fas fa-upload mr-1"></i> 上传
+                        </button>
+                        <button onclick="aiGenerate('testcases')" class="px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-sm hover:bg-blue-200">
+                            <i class="fas fa-magic mr-1"></i> 从PRD生成
+                        </button>
+                    </div>
+                </div>
+                <div id="list-testcases" class="space-y-2">
+                    <!-- 动态加载 -->
+                </div>
+            </div>
+
+            <!-- 自动化阶段 -->
+            <div id="stage-automation" class="stage-content p-6 hidden">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-bold">自动化测试</h2>
+                    <div class="space-x-2">
+                        <button onclick="uploadFile('automation')" class="px-3 py-1.5 bg-gray-100 rounded-lg text-sm hover:bg-gray-200">
+                            <i class="fas fa-upload mr-1"></i> 上传脚本
+                        </button>
+                        <button onclick="runAutomation()" class="px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-sm hover:bg-green-200">
+                            <i class="fas fa-play mr-1"></i> 执行测试
+                        </button>
+                    </div>
+                </div>
+                <div id="list-automation" class="space-y-2">
+                    <!-- 动态加载 -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 变更影响面板 -->
+        <div id="impact-panel" class="mt-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4 hidden">
+            <h3 class="font-bold text-yellow-800 mb-2"><i class="fas fa-exclamation-triangle mr-1"></i> 变更影响分析</h3>
+            <div id="impact-content" class="text-sm text-yellow-700">
+                <!-- 动态加载 -->
+            </div>
+        </div>
+
+        <!-- AI 助手侧边栏 -->
+        <div id="ai-sidebar" class="fixed right-0 top-16 w-80 bg-white shadow-lg h-[calc(100vh-4rem)] transform translate-x-full transition-transform duration-300 z-40">
+            <div class="p-4 border-b">
+                <h3 class="font-bold"><i class="fas fa-robot mr-2 text-blue-600"></i>AI 助手</h3>
+            </div>
+            <div class="p-4 space-y-4">
+                <div class="bg-blue-50 p-3 rounded-lg">
+                    <h4 class="text-sm font-bold text-blue-800 mb-1">智能推荐</h4>
+                    <p class="text-xs text-blue-600">基于历史项目，推荐相关技术方案和 UI 模式</p>
+                </div>
+                <div class="bg-gray-50 p-3 rounded-lg">
+                    <h4 class="text-sm font-bold text-gray-700 mb-1">历史方案</h4>
+                    <ul id="history-suggestions" class="text-xs text-gray-600 space-y-1">
+                        <li>加载中...</li>
+                    </ul>
+                </div>
+                <div class="bg-green-50 p-3 rounded-lg">
+                    <h4 class="text-sm font-bold text-green-800 mb-1">知识沉淀</h4>
+                    <p class="text-xs text-green-600">本项目已沉淀 0 条踩坑记录</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="/js/project.js"></script>
+</body>
+</html>
