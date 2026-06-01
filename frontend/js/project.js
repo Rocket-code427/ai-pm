@@ -34,8 +34,11 @@ async function loadMeetings() {
             return;
         }
         
+        // 只处理 .md 文件，跳过 .json meta 文件
+        const mdFiles = data.files.filter(f => f.name.endsWith('.md'));
+        
         // 为每个会议纪要读取 meta JSON
-        const cards = await Promise.all(data.files.map(async f => {
+        const cards = await Promise.all(mdFiles.map(async f => {
             // 尝试读取对应的 JSON meta 文件
             const metaName = f.name.replace('.md', '.json');
             let meta = null;
