@@ -144,11 +144,11 @@ def generate_minutes_with_llm(transcript_text, segments):
   "todos": ["待办1", "待办2"],
   "meeting_type": "需求评审",
   "theme": "本次会议核心主题：解决了什么问题",
-  "impact": {
+  "impact": {{
     "scope": ["需求", "PRD"],
     "nature": "推进",
     "summary": "一句话描述对项目的影响"
-  },
+  }},
   "tech_features": {{
     "通信协议": ["BLE", "MQTT"],
     "架构模式": ["网关中转"],
