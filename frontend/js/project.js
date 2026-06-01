@@ -14,9 +14,10 @@ document.addEventListener('DOMContentLoaded', () => {
     loadMeetings(); // 独立加载会议纪要
 });
 
-// 加载会议纪要（独立层级）
+// 加载会议纪要（独立层级）- 从 JSON meta 读取类型和影响
 async function loadMeetings() {
     try {
+        // 获取文件列表
         const response = await fetch(`/api/projects/${projectId}/files/meetings`);
         const data = await response.json();
         
@@ -33,22 +34,75 @@ async function loadMeetings() {
             return;
         }
         
-        container.innerHTML = data.files.map(f => `
-            <div class="flex items-center justify-between p-3 bg-indigo-50 rounded-lg hover:bg-indigo-100 cursor-pointer" onclick="viewFile('meetings', '${f.name.replace(/'/g, "\\'")}')">
-                <div class="flex items-center">
-                    <i class="fas ${getFileIcon(f.name)} text-indigo-500 mr-3"></i>
-                    <div>
-                        <p class="font-medium text-sm">${f.name}</p>
-                        <p class="text-xs text-gray-500">${formatFileSize(f.size)} · ${formatDate(f.modified)}</p>
+        // 为每个会议纪要读取 meta JSON
+        const cards = await Promise.all(data.files.map(async f => {
+            // 尝试读取对应的 JSON meta 文件
+            const metaName = f.name.replace('.md', '.json');
+            let meta = null;
+            try {
+                const metaResp = await fetch(`/api/projects/${projectId}/files/meetings/${encodeURIComponent(metaName)}`);
+                if (metaResp.ok) {
+                    const metaData = await metaResp.json();
+                    meta = JSON.parse(metaData.content);
+                }
+            } catch (e) {
+                // meta 文件不存在或解析失败，忽略
+            }
+            
+            // 类型标签颜色
+            const typeColors = {
+                '项目启动': 'bg-purple-100 text-purple-700',
+                '需求评审': 'bg-blue-100 text-blue-700',
+                'UI评审': 'bg-pink-100 text-pink-700',
+                '技术方案评审': 'bg-orange-100 text-orange-700',
+                '站会': 'bg-green-100 text-green-700',
+                '复盘回顾': 'bg-gray-100 text-gray-700',
+                '其他': 'bg-gray-100 text-gray-600'
+            };
+            
+            // 影响性质颜色
+            const natureColors = {
+                '推进': '🟢',
+                '调整': '🟡',
+                '纠偏': '🔴',
+                '补充': '🔵',
+                '信息同步': '⚪'
+            };
+            
+            const meetingType = meta?.meeting_type || '其他';
+            const typeClass = typeColors[meetingType] || typeColors['其他'];
+            const theme = meta?.theme || '';
+            const impact = meta?.impact || {};
+            const nature = impact.nature || '信息同步';
+            const natureIcon = natureColors[nature] || '⚪';
+            const scope = impact.scope?.length ? impact.scope.join('、') : '暂无';
+            const impactSummary = impact.summary || '';
+            
+            return `
+                <div class="bg-white rounded-lg border border-gray-200 hover:border-indigo-300 transition-all">
+                    <div class="p-3 cursor-pointer" onclick="viewFile('meetings', '${f.name.replace(/'/g, "\\'")}')">
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-0.5 rounded text-xs font-medium ${typeClass}">
+                                    ${meetingType}
+                                </span>
+                                <span class="text-xs text-gray-400">${natureIcon} ${nature}</span>
+                            </div>
+                            <span class="text-xs text-gray-400">${formatDate(f.modified)}</span>
+                        </div>
+                        <p class="font-medium text-sm text-gray-800 mb-1">${f.name}</p>
+                        ${theme ? `<p class="text-xs text-gray-500 mb-1.5">🎯 ${theme}</p>` : ''}
+                        ${impactSummary ? `<p class="text-xs text-indigo-600 mb-1.5">📌 ${impactSummary}</p>` : ''}
+                        <div class="flex items-center gap-3 text-xs text-gray-400">
+                            <span><i class="fas fa-ruler-combined mr-1"></i>影响: ${scope}</span>
+                            <span>${formatFileSize(f.size)}</span>
+                        </div>
                     </div>
                 </div>
-                <div class="space-x-2">
-                    <button onclick="event.stopPropagation(); viewFile('meetings', '${f.name.replace(/'/g, "\\'")}')" class="text-indigo-600 hover:text-indigo-800 text-sm">
-                        <i class="fas fa-eye"></i>
-                    </button>
-                </div>
-            </div>
-        `).join('');
+            `;
+        }));
+        
+        container.innerHTML = cards.join('');
         
     } catch (error) {
         console.error('加载会议纪要失败:', error);
@@ -251,7 +305,7 @@ function uploadMeeting() {
                 `;
                 
                 // 刷新会议纪要和需求列表
-                loadMeetings();  // 独立刷新会议纪要
+                loadMeetings();  // 独立刷新会议纪要（带类型标签）
                 loadStageFiles('requirements');
                 loadProject();
                 

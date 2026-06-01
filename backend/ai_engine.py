@@ -142,6 +142,13 @@ def generate_minutes_with_llm(transcript_text, segments):
   "topics": ["议题1", "议题2"],
   "decisions": ["决策1", "决策2"],
   "todos": ["待办1", "待办2"],
+  "meeting_type": "需求评审",
+  "theme": "本次会议核心主题：解决了什么问题",
+  "impact": {
+    "scope": ["需求", "PRD"],
+    "nature": "推进",
+    "summary": "一句话描述对项目的影响"
+  },
   "tech_features": {{
     "通信协议": ["BLE", "MQTT"],
     "架构模式": ["网关中转"],
@@ -157,10 +164,14 @@ def generate_minutes_with_llm(transcript_text, segments):
 }}
 
 注意：
-- 如果某类信息不存在，返回空数组
+- 如果某类信息不存在，返回空数组或空字符串
 - 技术特征从文本中推断，不要虚构。但对于明显的笔误或常识性错误（如协议名拼写错误、明显不存在的术语），可以进行合理修正并在括号中标注原文
 - 待办事项应包含负责人和截止时间（如果有）
 - 使用简体中文
+- **meeting_type 从以下列表中选择最匹配的**：项目启动、需求评审、UI评审、技术方案评审、站会、复盘回顾、其他
+- **theme 必须明确本次会议解决了什么问题**，而不是重复议题列表
+- **impact.nature 从以下选择**：推进（有进展）、调整（修改已有方案）、纠偏（纠正错误方向）、补充（新增未覆盖的内容）、信息同步（无实质变更）
+- **impact.scope 标记本次会议影响了哪些工作阶段**：需求、PRD、UI、技术方案、测试、项目整体
 """
         
         llm_result = call_llm(prompt, config)
@@ -188,6 +199,9 @@ def generate_minutes_with_llm(transcript_text, segments):
                     "tech_features": parsed.get("tech_features", {}),
                     "business_features": parsed.get("business_features", {}),
                     "summary": parsed.get("summary", ""),
+                    "meeting_type": parsed.get("meeting_type", "其他"),
+                    "theme": parsed.get("theme", ""),
+                    "impact": parsed.get("impact", {"scope": [], "nature": "信息同步", "summary": ""}),
                     "llm_enhanced": True
                 }
             except json.JSONDecodeError as e:
@@ -229,6 +243,9 @@ def generate_minutes_fallback(transcript_text, segments):
         "tech_features": tech_features,
         "business_features": {},
         "summary": "",
+        "meeting_type": "其他",
+        "theme": "",
+        "impact": {"scope": [], "nature": "信息同步", "summary": ""},
         "llm_enhanced": False
     }
 
@@ -276,6 +293,22 @@ def format_minutes(minutes_data, audio_filename):
     date = datetime.now().strftime("%Y-%m-%d")
     
     llm_badge = "🤖 LLM增强" if minutes_data.get("llm_enhanced") else "⚠️ 规则提取"
+    meeting_type = minutes_data.get("meeting_type", "其他")
+    theme = minutes_data.get("theme", "")
+    impact = minutes_data.get("impact", {})
+    
+    # 影响标签
+    nature_colors = {
+        "推进": "🟢",
+        "调整": "🟡",
+        "纠偏": "🔴",
+        "补充": "🔵",
+        "信息同步": "⚪"
+    }
+    nature = impact.get("nature", "信息同步")
+    nature_icon = nature_colors.get(nature, "⚪")
+    scope = ", ".join(impact.get("scope", [])) if impact.get("scope") else "暂无"
+    impact_summary = impact.get("summary", "")
     
     md = f"""# 会议纪要：{date}
 
@@ -284,6 +317,18 @@ def format_minutes(minutes_data, audio_filename):
 **会议时长**: {minutes_data['duration']:.1f} 分钟  
 **转录模型**: Whisper (本地)  
 **分析方式**: {llm_badge}  
+
+---
+
+## 📌 会议概览
+
+| 维度 | 内容 |
+|------|------|
+| **会议类型** | {meeting_type} |
+| **核心主题** | {theme or "_未提取_"} |
+| **影响性质** | {nature_icon} {nature} |
+| **影响范围** | {scope} |
+| **影响摘要** | {impact_summary or "_未提取_"} |
 
 ---
 
@@ -391,7 +436,10 @@ def process_meeting(audio_path, output_dir, model_size="small"):
         "decisions": minutes_data["decisions"],
         "todos": minutes_data["todos"],
         "summary": minutes_data.get("summary", ""),
-        "llm_enhanced": minutes_data.get("llm_enhanced", False)
+        "llm_enhanced": minutes_data.get("llm_enhanced", False),
+        "meeting_type": minutes_data.get("meeting_type", "其他"),
+        "theme": minutes_data.get("theme", ""),
+        "impact": minutes_data.get("impact", {"scope": [], "nature": "信息同步", "summary": ""})
     }
     meta_file = output_dir / f"meeting-{timestamp}.json"
     meta_file.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
