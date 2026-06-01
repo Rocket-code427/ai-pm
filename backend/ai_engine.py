@@ -81,12 +81,15 @@ def call_llm(prompt, config):
             "https": all_proxy
         }
     
+    # 根据任务类型调整超时
+    timeout = 60 if "PRD" in prompt else 30
+    
     try:
         resp = requests.post(
             f"{config['base_url']}/chat/completions",
             headers=headers,
             json=payload,
-            timeout=30,
+            timeout=timeout,
             proxies=proxies
         )
         if resp.status_code == 200:
@@ -408,6 +411,116 @@ def process_meeting(audio_path, output_dir, model_size="small"):
             "llm_enhanced": minutes_data.get("llm_enhanced", False)
         }
     }
+
+def generate_prd_from_requirements(req_contents, project_name=""):
+    """
+    调用 LLM 将多份需求合并为结构化 PRD
+    """
+    combined_req = "\n\n---\n\n".join(req_contents)
+    
+    config = get_llm_config()
+    if not config:
+        return _fallback_prd(combined_req, project_name)
+    
+    prompt = f"""你是一位资深产品经理，请根据以下需求文档，生成一份结构化的 PRD（产品需求文档）。
+
+## 项目信息
+项目名称：{project_name or '未命名项目'}
+
+## 需求文档内容（共 {len(req_contents)} 份）
+
+{combined_req[:5000]}
+
+## 输出要求
+
+请生成标准 PRD 格式，包含以下章节（使用 Markdown，层级清晰）：
+
+```markdown
+# PRD：项目名称
+
+## 1. 项目概述
+- 背景与问题
+- 目标与价值
+- 范围界定（包含/不包含）
+
+## 2. 用户与场景
+- 目标用户画像
+- 核心使用场景
+- 用户旅程地图（简要）
+
+## 3. 功能需求
+### 3.1 核心功能
+- 功能名称、描述、验收标准
+### 3.2 辅助功能
+### 3.3 功能优先级（P0/P1/P2）
+
+## 4. 非功能需求
+- 性能指标
+- 安全要求
+- 兼容性要求
+- 可维护性要求
+
+## 5. 交互与流程
+- 页面/模块结构
+- 核心流程图（用文字描述）
+- 关键界面说明
+
+## 6. 数据与接口
+- 数据模型（关键实体）
+- 接口定义（简要）
+
+## 7. 版本规划
+- MVP 范围
+- 后续迭代方向
+
+## 8. 风险评估
+- 技术风险
+- 业务风险
+- 缓解措施
+
+---
+> 本 PRD 由 AI 基于需求文档自动生成，请产品经理审核确认。
+```
+
+注意：
+- 不要编造需求文档中未提及的内容
+- 对于模糊的需求，标注「待澄清」
+- 技术实现细节留空，由研发补充
+- 使用简体中文
+"""
+
+    print("🤖 调用 LLM 生成 PRD...")
+    llm_result = call_llm(prompt, config)
+    
+    if llm_result:
+        clean = llm_result.strip()
+        if clean.startswith("```markdown"):
+            clean = clean[10:]
+        elif clean.startswith("```"):
+            clean = clean[3:]
+        if clean.endswith("```"):
+            clean = clean[:-3]
+        return clean.strip()
+    
+    return _fallback_prd(combined_req, project_name)
+
+
+def _fallback_prd(combined_req, project_name):
+    """PRD 生成失败时的备用模板"""
+    return f"""# PRD：{project_name or '未命名项目'}
+
+## 1. 项目概述
+
+基于需求文档生成。
+
+## 2. 功能需求（待结构化）
+
+{combined_req[:3000]}
+
+---
+> ⚠️ LLM 不可用，此为需求原文拼接。请手动整理为 PRD 格式。
+"""
+
 
 if __name__ == "__main__":
     import argparse

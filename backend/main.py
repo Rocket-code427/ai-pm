@@ -448,7 +448,6 @@ async def generate_prd(project_id: str, requirement_files: str = Form(...)):
             print(f"✅ 找到: {req_path}")
         else:
             print(f"❌ 未找到: {req_path}")
-            # 尝试列出目录内容
             req_dir = project_dir / "requirements"
             if req_dir.exists():
                 print(f"目录内容: {list(req_dir.iterdir())}")
@@ -456,20 +455,36 @@ async def generate_prd(project_id: str, requirement_files: str = Form(...)):
     if not req_contents:
         raise HTTPException(status_code=400, detail="未找到需求文件")
     
-    # TODO: 调用 LLM 生成 PRD
-    # 现在先返回合并的内容
-    combined = "\n\n---\n\n".join(req_contents)
+    # 调用 LLM 生成结构化 PRD
+    try:
+        import sys
+        backend_dir = str(PROJECT_ROOT / "backend")
+        if backend_dir not in sys.path:
+            sys.path.insert(0, backend_dir)
+        from ai_engine import generate_prd_from_requirements
+        project_meta_path = project_dir / ".meta" / "project.json"
+        project_name = project_id
+        if project_meta_path.exists():
+            meta = json.loads(project_meta_path.read_text(encoding="utf-8"))
+            project_name = meta.get("name", project_id)
+        prd_content = generate_prd_from_requirements(req_contents, project_name)
+    except Exception as e:
+        print(f"⚠️ LLM PRD 生成失败: {e}")
+        import traceback
+        traceback.print_exc()
+        prd_content = "\n\n---\n\n".join(req_contents)
     
     prd_dir = project_dir / "prd"
     prd_dir.mkdir(parents=True, exist_ok=True)
     
     prd_file = prd_dir / f"PRD-{datetime.now().strftime('%Y%m%d-%H%M%S')}.md"
-    prd_file.write_text(combined, encoding="utf-8")
+    prd_file.write_text(prd_content, encoding="utf-8")
     
     return {
         "message": "PRD 草案生成成功",
         "prd_file": str(prd_file),
-        "based_on": req_names
+        "based_on": req_names,
+        "llm_generated": not prd_content.startswith("⚠️")
     }
 
 if __name__ == "__main__":
