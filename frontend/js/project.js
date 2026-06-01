@@ -91,7 +91,7 @@ async function loadStageFiles(stage) {
         }
         
         container.innerHTML = data.files.map(f => `
-            <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer" onclick="viewFile('${stage}', '${f.name}')">
+            <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer" onclick="viewFile('${stage}', '${f.name.replace(/'/g, "\\'")}')">
                 <div class="flex items-center">
                     <i class="fas ${getFileIcon(f.name)} text-gray-400 mr-3"></i>
                     <div>
@@ -100,10 +100,10 @@ async function loadStageFiles(stage) {
                     </div>
                 </div>
                 <div class="space-x-2">
-                    <button onclick="event.stopPropagation(); viewFile('${stage}', '${f.name}')" class="text-blue-600 hover:text-blue-800 text-sm">
+                    <button onclick="event.stopPropagation(); viewFile('${stage}', '${f.name.replace(/'/g, "\\'")}')" class="text-blue-600 hover:text-blue-800 text-sm">
                         <i class="fas fa-eye"></i>
                     </button>
-                    <button onclick="event.stopPropagation(); deleteFile('${stage}', '${f.name}')" class="text-red-600 hover:text-red-800 text-sm">
+                    <button onclick="event.stopPropagation(); deleteFile('${stage}', '${f.name.replace(/'/g, "\\'")}')" class="text-red-600 hover:text-red-800 text-sm">
                         <i class="fas fa-trash"></i>
                     </button>
                 </div>
@@ -283,10 +283,11 @@ function showRequirementSelector(files) {
     return new Promise((resolve) => {
         const modal = document.createElement('div');
         modal.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center';
+        modal.id = 'req-selector-modal';
         modal.innerHTML = `
             <div class="bg-white rounded-lg p-6 w-full max-w-md max-h-[80vh] overflow-y-auto">
                 <h3 class="text-lg font-bold mb-4">选择需求文件</h3>
-                <div class="space-y-2 mb-4">
+                <div class="space-y-2 mb-4" id="req-selector-list">
                     ${files.map(f => `
                         <label class="flex items-center p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100">
                             <input type="checkbox" value="${f.name}" class="mr-3 requirement-checkbox" checked>
@@ -298,16 +299,20 @@ function showRequirementSelector(files) {
                     `).join('')}
                 </div>
                 <div class="flex justify-end space-x-3">
-                    <button onclick="this.closest('.fixed').remove(); resolve([]);" class="px-4 py-2 text-gray-600">取消</button>
-                    <button onclick="confirmSelection()" class="px-4 py-2 bg-blue-600 text-white rounded-lg">确认</button>
+                    <button id="req-cancel-btn" class="px-4 py-2 text-gray-600">取消</button>
+                    <button id="req-confirm-btn" class="px-4 py-2 bg-blue-600 text-white rounded-lg">确认</button>
                 </div>
             </div>
         `;
         
         document.body.appendChild(modal);
         
-        // 绑定确认函数
-        window.confirmSelection = () => {
+        // 绑定事件
+        document.getElementById('req-cancel-btn').onclick = () => {
+            modal.remove();
+            resolve([]);
+        };
+        document.getElementById('req-confirm-btn').onclick = () => {
             const checkboxes = modal.querySelectorAll('.requirement-checkbox:checked');
             const selected = Array.from(checkboxes).map(cb => cb.value);
             modal.remove();
@@ -319,7 +324,8 @@ function showRequirementSelector(files) {
 // 查看文件内容
 async function viewFile(stage, filename) {
     try {
-        const response = await fetch(`/api/projects/${projectId}/files/${stage}/${encodeURIComponent(filename)}`);
+        const encodedName = encodeURIComponent(filename);
+        const response = await fetch(`/api/projects/${projectId}/files/${stage}/${encodedName}`);
         if (!response.ok) throw new Error('读取失败');
         
         const data = await response.json();
@@ -370,7 +376,8 @@ async function saveFile(stage, filename) {
         const formData = new FormData();
         formData.append('content', content);
         
-        const response = await fetch(`/api/projects/${projectId}/files/${stage}/${encodeURIComponent(filename)}`, {
+        const encodedName = encodeURIComponent(filename);
+        const response = await fetch(`/api/projects/${projectId}/files/${stage}/${encodedName}`, {
             method: 'POST',
             body: formData
         });
