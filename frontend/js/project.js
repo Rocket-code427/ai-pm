@@ -11,7 +11,49 @@ let currentStage = 'requirements';
 document.addEventListener('DOMContentLoaded', () => {
     loadProject();
     loadStageFiles(currentStage);
+    loadMeetings(); // 独立加载会议纪要
 });
+
+// 加载会议纪要（独立层级）
+async function loadMeetings() {
+    try {
+        const response = await fetch(`/api/projects/${projectId}/files/meetings`);
+        const data = await response.json();
+        
+        const container = document.getElementById('list-meetings');
+        if (!container) return;
+        
+        if (!data.files || !data.files.length) {
+            container.innerHTML = `
+                <div class="text-center py-6 text-gray-400 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                    <i class="fas fa-microphone-slash text-2xl mb-2"></i>
+                    <p class="text-sm">暂无会议纪要，上传录音开始转录</p>
+                </div>
+            `;
+            return;
+        }
+        
+        container.innerHTML = data.files.map(f => `
+            <div class="flex items-center justify-between p-3 bg-indigo-50 rounded-lg hover:bg-indigo-100 cursor-pointer" onclick="viewFile('meetings', '${f.name.replace(/'/g, "\\'")}')">
+                <div class="flex items-center">
+                    <i class="fas ${getFileIcon(f.name)} text-indigo-500 mr-3"></i>
+                    <div>
+                        <p class="font-medium text-sm">${f.name}</p>
+                        <p class="text-xs text-gray-500">${formatFileSize(f.size)} · ${formatDate(f.modified)}</p>
+                    </div>
+                </div>
+                <div class="space-x-2">
+                    <button onclick="event.stopPropagation(); viewFile('meetings', '${f.name.replace(/'/g, "\\'")}')" class="text-indigo-600 hover:text-indigo-800 text-sm">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </div>
+            </div>
+        `).join('');
+        
+    } catch (error) {
+        console.error('加载会议纪要失败:', error);
+    }
+}
 
 // 加载项目详情
 async function loadProject() {
@@ -209,7 +251,7 @@ function uploadMeeting() {
                 `;
                 
                 // 刷新会议纪要和需求列表
-                loadStageFiles('meetings');
+                loadMeetings();  // 独立刷新会议纪要
                 loadStageFiles('requirements');
                 loadProject();
                 

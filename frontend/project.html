@@ -44,26 +44,85 @@
             </div>
         </div>
 
-        <!-- 工作流阶段导航 -->
-        <div class="flex space-x-2 mb-6 overflow-x-auto">
-            <button onclick="switchStage('requirements')" class="stage-btn active px-4 py-2 rounded-lg bg-blue-600 text-white text-sm whitespace-nowrap" data-stage="requirements">
-                <i class="fas fa-file-alt mr-1"></i> 需求 <span id="count-requirements" class="ml-1 bg-white bg-opacity-20 px-1.5 rounded text-xs">0</span>
-            </button>
-            <button onclick="switchStage('meetings')" class="stage-btn px-4 py-2 rounded-lg bg-gray-200 text-gray-700 text-sm whitespace-nowrap" data-stage="meetings">
-                <i class="fas fa-microphone mr-1"></i> 会议纪要 <span id="count-meetings" class="ml-1 bg-gray-300 px-1.5 rounded text-xs">0</span>
-            </button>
-            <button onclick="switchStage('prd')" class="stage-btn px-4 py-2 rounded-lg bg-gray-200 text-gray-700 text-sm whitespace-nowrap" data-stage="prd">
-                <i class="fas fa-book mr-1"></i> PRD <span id="count-prd" class="ml-1 bg-gray-300 px-1.5 rounded text-xs">0</span>
-            </button>
-            <button onclick="switchStage('ui')" class="stage-btn px-4 py-2 rounded-lg bg-gray-200 text-gray-700 text-sm whitespace-nowrap" data-stage="ui">
-                <i class="fas fa-desktop mr-1"></i> UI原型 <span id="count-ui" class="ml-1 bg-gray-300 px-1.5 rounded text-xs">0</span>
-            </button>
-            <button onclick="switchStage('testcases')" class="stage-btn px-4 py-2 rounded-lg bg-gray-200 text-gray-700 text-sm whitespace-nowrap" data-stage="testcases">
-                <i class="fas fa-vial mr-1"></i> 测试用例 <span id="count-testcases" class="ml-1 bg-gray-300 px-1.5 rounded text-xs">0</span>
-            </button>
-            <button onclick="switchStage('automation')" class="stage-btn px-4 py-2 rounded-lg bg-gray-200 text-gray-700 text-sm whitespace-nowrap" data-stage="automation">
-                <i class="fas fa-robot mr-1"></i> 自动化 <span id="count-automation" class="ml-1 bg-gray-300 px-1.5 rounded text-xs">0</span>
-            </button>
+        <!-- 📥 输入层：会议纪要（独立层级） -->
+        <div class="mb-6">
+            <div class="flex items-center justify-between mb-3">
+                <div class="flex items-center">
+                    <div class="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center mr-2">
+                        <i class="fas fa-microphone text-indigo-600"></i>
+                    </div>
+                    <h2 class="text-lg font-bold text-gray-800">📥 会议纪要 <span class="text-sm font-normal text-gray-500">（输入源 / 上游）</span></h2>
+                </div>
+                <button onclick="uploadMeeting()" class="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">
+                    <i class="fas fa-plus mr-1"></i> 上传录音
+                </button>
+            </div>
+            
+            <!-- 转录状态提示 -->
+            <div id="meeting-status" class="hidden mb-3 bg-indigo-50 border border-indigo-200 rounded-lg p-3">
+                <p id="meeting-status-text" class="text-sm text-indigo-700">
+                    <i class="fas fa-spinner fa-spin mr-1"></i> 正在转录...
+                </p>
+            </div>
+            
+            <!-- 会议纪要列表 -->
+            <div id="list-meetings" class="space-y-2">
+                <div class="text-center py-6 text-gray-400 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                    <i class="fas fa-microphone-slash text-2xl mb-2"></i>
+                    <p class="text-sm">暂无会议纪要，上传录音开始转录</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 🔄 工作流管道 -->
+        <div class="mb-4">
+            <div class="flex items-center mb-3">
+                <div class="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center mr-2">
+                    <i class="fas fa-project-diagram text-blue-600"></i>
+                </div>
+                <h2 class="text-lg font-bold text-gray-800">🔄 工作流 <span class="text-sm font-normal text-gray-500">（会议纪要 → 需求 → PRD → UI → 测试 → 自动化）</span></h2>
+            </div>
+            
+            <!-- 工作流阶段导航 -->
+            <div class="flex items-center space-x-1 mb-6 overflow-x-auto bg-gray-50 p-2 rounded-lg">
+                <!-- 需求 -->
+                <button onclick="switchStage('requirements')" class="stage-btn active flex-1 px-4 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-medium text-center" data-stage="requirements">
+                    <div><i class="fas fa-file-alt"></i> 需求</div>
+                    <div class="text-xs mt-0.5 opacity-80"><span id="count-requirements">0</span> 份</div>
+                </button>
+                
+                <div class="text-gray-400 px-1"><i class="fas fa-chevron-right"></i></div>
+                
+                <!-- PRD -->
+                <button onclick="switchStage('prd')" class="stage-btn flex-1 px-4 py-2.5 rounded-lg bg-gray-200 text-gray-700 text-sm font-medium text-center" data-stage="prd">
+                    <div><i class="fas fa-book"></i> PRD</div>
+                    <div class="text-xs mt-0.5 opacity-80"><span id="count-prd">0</span> 份</div>
+                </button>
+                
+                <div class="text-gray-400 px-1"><i class="fas fa-chevron-right"></i></div>
+                
+                <!-- UI -->
+                <button onclick="switchStage('ui')" class="stage-btn flex-1 px-4 py-2.5 rounded-lg bg-gray-200 text-gray-700 text-sm font-medium text-center" data-stage="ui">
+                    <div><i class="fas fa-desktop"></i> UI</div>
+                    <div class="text-xs mt-0.5 opacity-80"><span id="count-ui">0</span> 份</div>
+                </button>
+                
+                <div class="text-gray-400 px-1"><i class="fas fa-chevron-right"></i></div>
+                
+                <!-- 测试 -->
+                <button onclick="switchStage('testcases')" class="stage-btn flex-1 px-4 py-2.5 rounded-lg bg-gray-200 text-gray-700 text-sm font-medium text-center" data-stage="testcases">
+                    <div><i class="fas fa-vial"></i> 测试</div>
+                    <div class="text-xs mt-0.5 opacity-80"><span id="count-testcases">0</span> 份</div>
+                </button>
+                
+                <div class="text-gray-400 px-1"><i class="fas fa-chevron-right"></i></div>
+                
+                <!-- 自动化 -->
+                <button onclick="switchStage('automation')" class="stage-btn flex-1 px-4 py-2.5 rounded-lg bg-gray-200 text-gray-700 text-sm font-medium text-center" data-stage="automation">
+                    <div><i class="fas fa-robot"></i> 自动化</div>
+                    <div class="text-xs mt-0.5 opacity-80"><span id="count-automation">0</span> 份</div>
+                </button>
+            </div>
         </div>
 
         <!-- 阶段内容区 -->
@@ -82,29 +141,6 @@
                     </div>
                 </div>
                 <div id="list-requirements" class="space-y-2">
-                    <!-- 动态加载 -->
-                </div>
-            </div>
-
-    <!-- 会议纪要阶段 -->
-            <div id="stage-meetings" class="stage-content p-6 hidden">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-lg font-bold">会议纪要</h2>
-                    <div class="space-x-2">
-                        <button onclick="uploadMeeting()" class="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
-                            <i class="fas fa-microphone mr-1"></i> 上传录音
-                        </button>
-                    </div>
-                </div>
-                
-                <!-- 转录状态提示 -->
-                <div id="meeting-status" class="hidden mb-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
-                    <p id="meeting-status-text" class="text-sm text-blue-700">
-                        <i class="fas fa-spinner fa-spin mr-1"></i> 正在转录...
-                    </p>
-                </div>
-                
-                <div id="list-meetings" class="space-y-2">
                     <!-- 动态加载 -->
                 </div>
             </div>
