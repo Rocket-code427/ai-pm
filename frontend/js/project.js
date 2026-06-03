@@ -672,7 +672,7 @@ async function submitFeishuPRD() {
     // 从 URL 中提取 token
     let docToken = token;
     if (token.includes('/')) {
-        const match = token.match(//([a-zA-Z0-9]+)(?:\?|$)/);
+        const match = token.match(/\/([a-zA-Z0-9]+)(?:\?|$)/);
         if (match) docToken = match[1];
     }
     
