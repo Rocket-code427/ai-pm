@@ -27,9 +27,23 @@ def get_model(model_size="small"):
     return _model
 
 def get_llm_config():
-    """获取 LLM 配置"""
-    # 优先级：Kimi > Qwen > OpenAI
-    kim_key = os.environ.get("KIMI_API_KEY") or "sk-bazgRPS4SyE4Eb4xviUJB3GkZMetgbGzOZGsGcSSrDvaAxJb"
+    """获取 LLM 配置：优先配置文件，其次环境变量"""
+    # 尝试从配置文件读取（被 main.py 和独立进程共用）
+    try:
+        import importlib.util
+        config_path = Path(__file__).parent / "config.py"
+        if config_path.exists():
+            spec = importlib.util.spec_from_file_location("config", str(config_path))
+            config_mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(config_mod)
+            cfg = config_mod.get_llm_config_from_file()
+            if cfg:
+                return cfg
+    except Exception:
+        pass
+    
+    # 降级：环境变量
+    kim_key = os.environ.get("KIMI_API_KEY", "").strip()
     if kim_key:
         return {
             "provider": "kimi",
@@ -37,17 +51,19 @@ def get_llm_config():
             "base_url": "https://api.moonshot.cn/v1",
             "model": "moonshot-v1-8k"
         }
-    elif os.environ.get("QWEN_API_KEY"):
+    qwen_key = os.environ.get("QWEN_API_KEY", "").strip()
+    if qwen_key:
         return {
             "provider": "qwen",
-            "api_key": os.environ["QWEN_API_KEY"],
+            "api_key": qwen_key,
             "base_url": "https://dashscope.aliyuncs.com/api/v1",
             "model": "qwen-plus"
         }
-    elif os.environ.get("OPENAI_API_KEY"):
+    openai_key = os.environ.get("OPENAI_API_KEY", "").strip()
+    if openai_key:
         return {
             "provider": "openai",
-            "api_key": os.environ["OPENAI_API_KEY"],
+            "api_key": openai_key,
             "base_url": "https://api.openai.com/v1",
             "model": "gpt-3.5-turbo"
         }
@@ -66,7 +82,7 @@ def call_llm(prompt, config):
     payload = {
         "model": config["model"],
         "messages": [
-            {"role": "system", "content": "你是一个专业的会议纪要和需求分析助手。请分析会议转录文本，提取结构化信息。"},
+            {"role": "system", "content": "你是一个专业的会议纪要和需求分析助手。请分析文本，提取结构化信息。"},
             {"role": "user", "content": prompt}
         ],
         "temperature": 0.3
@@ -123,18 +139,22 @@ def transcribe_audio(audio_path, model_size="small"):
     
     return result
 
-def generate_minutes_with_llm(transcript_text, segments):
-    """使用 LLM 生成结构化纪要"""
+def generate_minutes_with_llm(transcript_text, segments=None):
+    """使用 LLM 生成结构化纪要（支持音频转录或纯文本输入）"""
     duration = segments[-1]["end"] if segments else 0
     
     config = get_llm_config()
     
     if config:
-        print("🤖 调用 LLM 分析转录文本...")
+        print("🤖 调用 LLM 分析文本...")
         
-        prompt = f"""请分析以下会议转录文本，提取结构化信息。
+        # 根据输入类型调整提示语
+        is_text_input = segments is None
+        source_type = "文字文档" if is_text_input else "转录文本"
+        
+        prompt = f"""请分析以下{source_type}，提取结构化信息。
 
-转录文本：
+{source_type}：
 {transcript_text}
 
 请按以下 JSON 格式返回（不要包含 markdown 代码块标记，只返回纯 JSON）：
@@ -165,7 +185,8 @@ def generate_minutes_with_llm(transcript_text, segments):
 
 注意：
 - 如果某类信息不存在，返回空数组或空字符串
-- 技术特征从文本中推断，不要虚构。但对于明显的笔误或常识性错误（如协议名拼写错误、明显不存在的术语），可以进行合理修正并在括号中标注原文
+- **对于明显的笔误或常识性错误（如协议名拼写错误、明显不存在的术语、错别字），必须进行合理修正，不要保留错误原文**
+- **示例**：转录文本说"蓝牙Black协议"，这是一个明显不存在的协议名，必须修正为"蓝牙"或"BLE"；说"卡片视列表"应为"卡片式列表"
 - 待办事项应包含负责人和截止时间（如果有）
 - 使用简体中文
 - **meeting_type 从以下列表中选择最匹配的**：项目启动、需求评审、UI评审、技术方案评审、站会、复盘回顾、其他
@@ -212,7 +233,7 @@ def generate_minutes_with_llm(transcript_text, segments):
     print("⚠️ LLM 不可用，使用规则提取...")
     return generate_minutes_fallback(transcript_text, segments)
 
-def generate_minutes_fallback(transcript_text, segments):
+def generate_minutes_fallback(transcript_text, segments=None):
     """备用：简单规则提取"""
     duration = segments[-1]["end"] if segments else 0
     
@@ -285,299 +306,252 @@ def extract_tech_features(text):
     
     return features
 
-def format_minutes(minutes_data, audio_filename):
-    """格式化为 Markdown"""
-    from datetime import datetime
+def format_meeting_minutes(result, date="", title=""):
+    """格式化会议纪要为 Markdown"""
+    if not title:
+        title = result.get("meeting_type", "会议")
+    if not date:
+        from datetime import datetime
+        date = datetime.now().strftime("%Y-%m-%d")
     
-    now = datetime.now().strftime("%Y-%m-%d %H:%M")
-    date = datetime.now().strftime("%Y-%m-%d")
+    # 会议类型分类
+    meeting_type = result.get("meeting_type", "其他")
+    theme = result.get("theme", "")
+    impact = result.get("impact", {})
     
-    llm_badge = "🤖 LLM增强" if minutes_data.get("llm_enhanced") else "⚠️ 规则提取"
-    meeting_type = minutes_data.get("meeting_type", "其他")
-    theme = minutes_data.get("theme", "")
-    impact = minutes_data.get("impact", {})
-    
-    # 影响标签
-    nature_colors = {
-        "推进": "🟢",
-        "调整": "🟡",
-        "纠偏": "🔴",
-        "补充": "🔵",
-        "信息同步": "⚪"
-    }
-    nature = impact.get("nature", "信息同步")
-    nature_icon = nature_colors.get(nature, "⚪")
-    scope = ", ".join(impact.get("scope", [])) if impact.get("scope") else "暂无"
-    impact_summary = impact.get("summary", "")
-    
-    md = f"""# 会议纪要：{date}
+    md = f"""# 会议纪要：{title}
 
-**音频来源**: `{audio_filename}`  
-**生成时间**: {now}  
-**会议时长**: {minutes_data['duration']:.1f} 分钟  
-**转录模型**: Whisper (本地)  
-**分析方式**: {llm_badge}  
-
----
-
-## 📌 会议概览
-
-| 维度 | 内容 |
-|------|------|
-| **会议类型** | {meeting_type} |
-| **核心主题** | {theme or "_未提取_"} |
-| **影响性质** | {nature_icon} {nature} |
-| **影响范围** | {scope} |
-| **影响摘要** | {impact_summary or "_未提取_"} |
+> **日期**: {date}
+> **时长**: {result.get('duration', 0):.0f} 秒
+> **类型**: {meeting_type}
+> **主题**: {theme}
+> **影响范围**: {', '.join(impact.get('scope', [])) or '暂无'}
+> **影响性质**: {impact.get('nature', '信息同步')}
+> **影响摘要**: {impact.get('summary', '')}
+> **LLM增强**: {'✅' if result.get('llm_enhanced') else '❌'}
 
 ---
 
 ## 摘要
 
-{minutes_data.get('summary', '_未生成摘要_')}
+{result.get('summary', '')}
 
 ---
 
 ## 议题
 
 """
-    if minutes_data['topics']:
-        for i, topic in enumerate(minutes_data['topics'], 1):
-            md += f"{i}. {topic}\n"
-    else:
-        md += "_（未识别到明确议题）_\n"
     
-    md += "\n## 决策\n\n"
-    if minutes_data['decisions']:
-        for decision in minutes_data['decisions']:
-            md += f"- [x] {decision}\n"
-    else:
-        md += "_（未识别到明确决策）_\n"
+    for topic in result.get('topics', []):
+        md += f"- {topic}\\n"
     
-    md += "\n## 待办\n\n"
-    if minutes_data['todos']:
-        for todo in minutes_data['todos']:
-            md += f"- [ ] {todo}\n"
-    else:
-        md += "_（未识别到待办事项）_\n"
+    md += "\\n## 决策\\n\\n"
+    for decision in result.get('decisions', []):
+        md += f"- {decision}\\n"
     
-    # 技术特征
-    tech = minutes_data.get('tech_features', {})
-    if any(tech.values()):
-        md += "\n## 技术特征\n\n"
-        for key, values in tech.items():
-            if values:
-                md += f"- **{key}**: {', '.join(values)}\n"
+    md += "\\n## 待办\\n\\n"
+    for todo in result.get('todos', []):
+        md += f"- [ ] {todo}\\n"
     
-    # 业务特征
-    business = minutes_data.get('business_features', {})
-    if business:
-        md += "\n## 业务特征\n\n"
-        if business.get("品类/模块"):
-            md += f"- **品类/模块**: {', '.join(business['品类/模块'])}\n"
-        if business.get("功能"):
-            md += f"- **功能**: {', '.join(business['功能'])}\n"
-        if business.get("实现方案"):
-            md += f"- **实现方案**: {business['实现方案']}\n"
+    md += "\\n## 技术特征\\n\\n"
+    tech = result.get('tech_features', {})
+    for category, items in tech.items():
+        if items:
+            md += f"**{category}**: {', '.join(items)}\\n"
     
-    md += f"""
----
-
-## 原始转录
-
-<details>
-<summary>点击展开（{len(minutes_data['transcript'])} 字）</summary>
-
-```
-{minutes_data['transcript']}
-```
-
-</details>
-
----
-
-> 📝 本纪要由 AI 辅助生成，关键信息请人工核对确认。
-"""
+    md += "\\n## 业务特征\\n\\n"
+    business = result.get('business_features', {})
+    for category, items in business.items():
+        if items:
+            md += f"**{category}**: {', '.join(items)}\\n"
+    
+    md += "\\n## 完整转录\\n\\n"
+    md += f"```\\n{result.get('transcript', '')}\\n```\\n"
     
     return md
 
-def process_meeting(audio_path, output_dir, model_size="small"):
-    """完整流程：转录 → LLM分析 → 保存"""
-    audio_path = Path(audio_path)
-    output_dir = Path(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
+def extract_text_from_file(file_path):
+    """从文件提取纯文本（支持 txt, md, pdf, docx）"""
+    file_path = Path(file_path)
+    suffix = file_path.suffix.lower()
     
-    # 1. 转录
-    result = transcribe_audio(str(audio_path), model_size)
-    transcript = result["text"]
-    segments = result["segments"]
+    # 纯文本文件
+    if suffix in ['.txt', '.md', '.markdown', '.text']:
+        return file_path.read_text(encoding='utf-8')
     
-    print(f"✅ 转录完成: {len(transcript)} 字")
+    # PDF
+    if suffix == '.pdf':
+        try:
+            import pypdf
+            reader = pypdf.PdfReader(str(file_path))
+            text = ""
+            for page in reader.pages:
+                text += page.extract_text() + "\\n"
+            return text
+        except ImportError:
+            return f"⚠️ 需要安装 pypdf 才能解析 PDF: pip install pypdf"
+        except Exception as e:
+            return f"⚠️ PDF 解析失败: {e}"
     
-    # 2. LLM 结构化分析
-    minutes_data = generate_minutes_with_llm(transcript, segments)
+    # Word
+    if suffix in ['.docx', '.doc']:
+        try:
+            import docx
+            doc = docx.Document(str(file_path))
+            text = "\\n".join([para.text for para in doc.paragraphs if para.text.strip()])
+            return text
+        except ImportError:
+            return f"⚠️ 需要安装 python-docx 才能解析 Word: pip install python-docx"
+        except Exception as e:
+            return f"⚠️ Word 解析失败: {e}"
     
-    # 3. 格式化
-    md_content = format_minutes(minutes_data, audio_path.name)
+    # 尝试作为文本读取
+    try:
+        return file_path.read_text(encoding='utf-8')
+    except:
+        return f"⚠️ 无法读取文件格式: {suffix}"
+
+def generate_meeting_from_text(text_content, meeting_title=""):
+    """从文字内容直接生成结构化会议纪要"""
+    result = generate_minutes_with_llm(text_content, segments=None)
     
-    # 4. 保存
+    if not meeting_title:
+        meeting_title = result.get("meeting_type", "会议纪要")
+    
     from datetime import datetime
-    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    output_file = output_dir / f"meeting-{timestamp}.md"
-    output_file.write_text(md_content, encoding="utf-8")
-    
-    # 5. 保存元数据（用于知识沉淀）
-    meta = {
-        "audio_file": str(audio_path.name),
-        "duration": minutes_data["duration"],
-        "tech_features": minutes_data.get("tech_features", {}),
-        "business_features": minutes_data.get("business_features", {}),
-        "topics": minutes_data["topics"],
-        "decisions": minutes_data["decisions"],
-        "todos": minutes_data["todos"],
-        "summary": minutes_data.get("summary", ""),
-        "llm_enhanced": minutes_data.get("llm_enhanced", False),
-        "meeting_type": minutes_data.get("meeting_type", "其他"),
-        "theme": minutes_data.get("theme", ""),
-        "impact": minutes_data.get("impact", {"scope": [], "nature": "信息同步", "summary": ""})
-    }
-    meta_file = output_dir / f"meeting-{timestamp}.json"
-    meta_file.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
-    
-    print(f"✅ 纪要已保存: {output_file}")
-    print(f"📊 摘要: {len(minutes_data['topics'])} 议题, {len(minutes_data['decisions'])} 决策, {len(minutes_data['todos'])} 待办")
-    if minutes_data.get("llm_enhanced"):
-        print(f"🤖 LLM 分析已应用")
+    date = datetime.now().strftime("%Y-%m-%d")
+    md = format_meeting_minutes(result, date=date, title=meeting_title)
     
     return {
-        "minutes_file": str(output_file),
-        "meta_file": str(meta_file),
-        "summary": {
-            "topics": len(minutes_data['topics']),
-            "decisions": len(minutes_data['decisions']),
-            "todos": len(minutes_data['todos']),
-            "llm_enhanced": minutes_data.get("llm_enhanced", False)
-        }
+        "minutes": md,
+        "summary": result,
+        "title": meeting_title
     }
 
-def generate_prd_from_requirements(req_contents, project_name=""):
-    """
-    调用 LLM 将多份需求合并为结构化 PRD
-    """
-    combined_req = "\n\n---\n\n".join(req_contents)
-    
+def generate_requirement_from_text(text_content, req_name=""):
+    """从文字内容生成结构化需求文档"""
     config = get_llm_config()
-    if not config:
-        return _fallback_prd(combined_req, project_name)
     
-    prompt = f"""你是一位资深产品经理，请根据以下需求文档，生成一份结构化的 PRD（产品需求文档）。
+    if not config:
+        return None
+    
+    prompt = f"""你是一位资深产品经理，请分析以下文字内容，提取并整理为结构化的需求文档。
 
-## 项目信息
-项目名称：{project_name or '未命名项目'}
+原始内容：
+{text_content[:8000]}
 
-## 需求文档内容（共 {len(req_contents)} 份）
+请输出以下格式的需求文档（Markdown 格式，不要代码块）：
 
-{combined_req[:5000]}
+# [需求名称]
 
-## 输出要求
-
-请生成标准 PRD 格式，包含以下章节（使用 Markdown，层级清晰）：
-
-```markdown
-# PRD：项目名称
-
-## 1. 项目概述
-- 背景与问题
-- 目标与价值
-- 范围界定（包含/不包含）
-
-## 2. 用户与场景
-- 目标用户画像
-- 核心使用场景
-- 用户旅程地图（简要）
-
-## 3. 功能需求
-### 3.1 核心功能
-- 功能名称、描述、验收标准
-### 3.2 辅助功能
-### 3.3 功能优先级（P0/P1/P2）
-
-## 4. 非功能需求
-- 性能指标
-- 安全要求
-- 兼容性要求
-- 可维护性要求
-
-## 5. 交互与流程
-- 页面/模块结构
-- 核心流程图（用文字描述）
-- 关键界面说明
-
-## 6. 数据与接口
-- 数据模型（关键实体）
-- 接口定义（简要）
-
-## 7. 版本规划
-- MVP 范围
-- 后续迭代方向
-
-## 8. 风险评估
-- 技术风险
-- 业务风险
-- 缓解措施
+> **来源**: 文字文档提取
+> **生成时间**: [当前日期]
+> **状态**: 草稿（待确认）
 
 ---
-> 本 PRD 由 AI 基于需求文档自动生成，请产品经理审核确认。
-```
+
+## 需求概述
+
+[一句话描述需求目标和价值]
+
+## 用户与场景
+
+[目标用户群体及使用场景]
+
+## 功能需求
+
+### P0 - 必须有
+- [ ] 功能1
+- [ ] 功能2
+
+### P1 - 应该有
+- [ ] 功能3
+
+### P2 - 可以有
+- [ ] 功能4
+
+## 非功能需求
+
+- 性能：...
+- 安全：...
+- 兼容性：...
+
+## 技术约束
+
+[从原文中提取的技术特征]
+
+## 待办事项
+
+- [ ] 待办1
+- [ ] 待办2
+
+## 备注
+
+[原始内容中的其他有价值信息]
 
 注意：
-- 不要编造需求文档中未提及的内容（如全新功能、未讨论的技术方案）
-- 但对于明显的笔误或常识性错误（如协议名、技术术语的明显拼写错误），可以进行合理修正并标注「原文修正」
-- 对于模糊的需求，标注「待澄清」
-- 技术实现细节留空，由研发补充
-- 使用简体中文
+- 只整理原文中明确提到的内容，不要编造
+- 如果原文信息不足，留空或标记为"待补充"
+- 对于明显的笔误进行修正
 """
-
-    print("🤖 调用 LLM 生成 PRD...")
+    
     llm_result = call_llm(prompt, config)
     
     if llm_result:
-        clean = llm_result.strip()
-        if clean.startswith("```markdown"):
-            clean = clean[10:]
-        elif clean.startswith("```"):
-            clean = clean[3:]
-        if clean.endswith("```"):
-            clean = clean[:-3]
-        return clean.strip()
-    
-    return _fallback_prd(combined_req, project_name)
+        return llm_result
+    else:
+        return None
 
-
-def _fallback_prd(combined_req, project_name):
-    """PRD 生成失败时的备用模板"""
-    return f"""# PRD：{project_name or '未命名项目'}
-
-## 1. 项目概述
-
-基于需求文档生成。
-
-## 2. 功能需求（待结构化）
-
-{combined_req[:3000]}
-
----
-> ⚠️ LLM 不可用，此为需求原文拼接。请手动整理为 PRD 格式。
-"""
-
-
-if __name__ == "__main__":
+def main():
+    """命令行入口：转录音频文件"""
     import argparse
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="AI-PM 转录引擎")
     parser.add_argument("audio", help="音频文件路径")
-    parser.add_argument("--output", "-o", default=".", help="输出目录")
-    parser.add_argument("--model", default="small", choices=["tiny", "base", "small", "medium"])
+    parser.add_argument("-o", "--output", default=".", help="输出目录")
+    parser.add_argument("--model", default="small", help="Whisper 模型大小")
     args = parser.parse_args()
     
-    result = process_meeting(args.audio, args.output, args.model)
-    print(json.dumps(result, ensure_ascii=False))
+    # 转录
+    result = transcribe_audio(args.audio, args.model)
+    
+    # 生成结构化纪要
+    minutes = generate_minutes_with_llm(result["text"], result.get("segments", []))
+    
+    # 格式化
+    date = os.path.basename(args.audio).split('.')[0]
+    md = format_meeting_minutes(minutes, date=date)
+    
+    # 保存
+    output_dir = Path(args.output)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    minutes_file = output_dir / f"会议纪要-{date}.md"
+    minutes_file.write_text(md, encoding='utf-8')
+    
+    # 保存元数据
+    meta = {
+        "audio": args.audio,
+        "date": date,
+        "duration": minutes["duration"],
+        "topics_count": len(minutes["topics"]),
+        "decisions_count": len(minutes["decisions"]),
+        "todos_count": len(minutes["todos"]),
+        "llm_enhanced": minutes["llm_enhanced"]
+    }
+    meta_file = output_dir / f"{date}.json"
+    meta_file.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding='utf-8')
+    
+    print(f"✅ 会议纪要已保存: {minutes_file}")
+    print(json.dumps({
+        "minutes_file": str(minutes_file),
+        "meta_file": str(meta_file),
+        "summary": {
+            "topics": minutes["topics"],
+            "decisions": minutes["decisions"],
+            "todos": minutes["todos"],
+            "summary": minutes["summary"]
+        }
+    }, ensure_ascii=False))
+
+if __name__ == "__main__":
+    main()

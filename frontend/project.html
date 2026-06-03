@@ -56,6 +56,9 @@
                 <button onclick="uploadMeeting()" class="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">
                     <i class="fas fa-plus mr-1"></i> 上传录音
                 </button>
+                <button onclick="uploadMeetingText()" class="px-3 py-1.5 bg-indigo-100 text-indigo-700 rounded-lg text-sm hover:bg-indigo-200 ml-2">
+                    <i class="fas fa-file-alt mr-1"></i> 上传文字
+                </button>
             </div>
             
             <!-- 转录状态提示 -->
@@ -131,9 +134,12 @@
             <div id="stage-requirements" class="stage-content p-6">
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-lg font-bold">需求文档</h2>
-                    <div class="space-x-2">
+                    <div class="flex flex-wrap gap-2">
                         <button onclick="uploadFile('requirements')" class="px-3 py-1.5 bg-gray-100 rounded-lg text-sm hover:bg-gray-200">
                             <i class="fas fa-upload mr-1"></i> 上传
+                        </button>
+                        <button onclick="uploadTextToRequirement()" class="px-3 py-1.5 bg-teal-100 text-teal-700 rounded-lg text-sm hover:bg-teal-200">
+                            <i class="fas fa-file-import mr-1"></i> 文字文档→AI解析
                         </button>
                         <button onclick="aiGenerate('requirements')" class="px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-sm hover:bg-blue-200">
                             <i class="fas fa-magic mr-1"></i> AI生成
@@ -149,12 +155,21 @@
             <div id="stage-prd" class="stage-content p-6 hidden">
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-lg font-bold">PRD 文档</h2>
-                    <div class="space-x-2">
+                    <div class="flex flex-wrap gap-2">
                         <button onclick="uploadFile('prd')" class="px-3 py-1.5 bg-gray-100 rounded-lg text-sm hover:bg-gray-200">
                             <i class="fas fa-upload mr-1"></i> 上传
                         </button>
                         <button onclick="generatePRD()" class="px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-sm hover:bg-blue-200">
                             <i class="fas fa-magic mr-1"></i> 从需求生成
+                        </button>
+                        <button onclick="startInterviewPRD()" class="px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg text-sm hover:bg-purple-200">
+                            <i class="fas fa-comments mr-1"></i> 访谈生成
+                        </button>
+                        <button onclick="uploadDocToPRD()" class="px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-sm hover:bg-green-200">
+                            <i class="fas fa-file-import mr-1"></i> 文档直传
+                        </button>
+                        <button onclick="fetchFeishuToPRD()" class="px-3 py-1.5 bg-indigo-100 text-indigo-700 rounded-lg text-sm hover:bg-indigo-200">
+                            <i class="fas fa-cloud mr-1"></i> 飞书文档
                         </button>
                     </div>
                 </div>
@@ -174,18 +189,49 @@
             <!-- UI 阶段 -->
             <div id="stage-ui" class="stage-content p-6 hidden">
                 <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-lg font-bold">UI 原型</h2>
-                    <div class="space-x-2">
-                        <button onclick="uploadFile('ui')" class="px-3 py-1.5 bg-gray-100 rounded-lg text-sm hover:bg-gray-200">
-                            <i class="fas fa-upload mr-1"></i> 上传HTML
-                        </button>
-                        <button onclick="uploadDesign()" class="px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg text-sm hover:bg-purple-200">
-                            <i class="fas fa-image mr-1"></i> 设计稿→HTML
-                        </button>
+                    <h2 class="text-lg font-bold">UI 设计</h2>
+                </div>
+
+                <!-- 原型草案 -->
+                <div class="mb-6 border-l-4 border-purple-400 pl-4">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="font-bold text-gray-800"><i class="fas fa-drafting-compass mr-2 text-purple-600"></i>原型草案 <span class="text-xs font-normal text-gray-500">（LLM 生成 / 可丢弃）</span></h3>
+                        <div class="flex flex-wrap gap-2">
+                            <button onclick="uploadFile('ui_prototype')" class="px-3 py-1.5 bg-gray-100 rounded-lg text-sm hover:bg-gray-200">
+                                <i class="fas fa-upload mr-1"></i> 上传原型
+                            </button>
+                            <button onclick="generateUIPrototype()" class="px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg text-sm hover:bg-purple-200">
+                                <i class="fas fa-magic mr-1"></i> 从PRD生成
+                            </button>
+                        </div>
+                    </div>
+                    <div id="list-ui_prototype" class="space-y-2">
+                        <div class="text-center py-4 text-gray-400 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                            <i class="fas fa-pencil-ruler text-xl mb-1"></i>
+                            <p class="text-xs">暂无原型草案</p>
+                        </div>
                     </div>
                 </div>
-                <div id="list-ui" class="space-y-2">
-                    <!-- 动态加载 -->
+
+                <!-- 设计终稿 -->
+                <div class="border-l-4 border-blue-500 pl-4">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="font-bold text-gray-800"><i class="fas fa-paint-brush mr-2 text-blue-600"></i>设计终稿 <span class="text-xs font-normal text-gray-500">（以此为标准 → 测试 / 自动化）</span></h3>
+                        <div class="flex flex-wrap gap-2">
+                            <button onclick="uploadFile('ui_final')" class="px-3 py-1.5 bg-gray-100 rounded-lg text-sm hover:bg-gray-200">
+                                <i class="fas fa-upload mr-1"></i> 上传终稿 HTML
+                            </button>
+                            <button onclick="uploadDesign()" class="px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-sm hover:bg-blue-200">
+                                <i class="fas fa-image mr-1"></i> 设计稿→HTML
+                            </button>
+                        </div>
+                    </div>
+                    <div id="list-ui_final" class="space-y-2">
+                        <div class="text-center py-4 text-gray-400 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                            <i class="fas fa-check-circle text-xl mb-1"></i>
+                            <p class="text-xs">暂无设计终稿</p>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -193,12 +239,12 @@
             <div id="stage-testcases" class="stage-content p-6 hidden">
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-lg font-bold">测试用例</h2>
-                    <div class="space-x-2">
+                    <div class="flex flex-wrap gap-2">
                         <button onclick="uploadFile('testcases')" class="px-3 py-1.5 bg-gray-100 rounded-lg text-sm hover:bg-gray-200">
                             <i class="fas fa-upload mr-1"></i> 上传
                         </button>
-                        <button onclick="aiGenerate('testcases')" class="px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-sm hover:bg-blue-200">
-                            <i class="fas fa-magic mr-1"></i> 从PRD生成
+                        <button onclick="generateTestcases()" class="px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-sm hover:bg-blue-200">
+                            <i class="fas fa-magic mr-1"></i> 从PRD+UI生成
                         </button>
                     </div>
                 </div>
@@ -211,11 +257,11 @@
             <div id="stage-automation" class="stage-content p-6 hidden">
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-lg font-bold">自动化测试</h2>
-                    <div class="space-x-2">
+                    <div class="flex flex-wrap gap-2">
                         <button onclick="uploadFile('automation')" class="px-3 py-1.5 bg-gray-100 rounded-lg text-sm hover:bg-gray-200">
                             <i class="fas fa-upload mr-1"></i> 上传脚本
                         </button>
-                        <button onclick="runAutomation()" class="px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-sm hover:bg-green-200">
+                        <button onclick="runAutomationTests()" class="px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-sm hover:bg-green-200">
                             <i class="fas fa-play mr-1"></i> 执行测试
                         </button>
                     </div>
@@ -253,6 +299,100 @@
                 <div class="bg-green-50 p-3 rounded-lg">
                     <h4 class="text-sm font-bold text-green-800 mb-1">知识沉淀</h4>
                     <p class="text-xs text-green-600">本项目已沉淀 0 条踩坑记录</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 访谈对话框 -->
+        <div id="interview-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+            <div class="bg-white rounded-lg p-6 w-full max-w-lg max-h-[80vh] flex flex-col">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold"><i class="fas fa-comments mr-2 text-purple-600"></i>PRD 访谈生成</h2>
+                    <button onclick="closeInterview()" class="text-gray-500 hover:text-gray-700"><i class="fas fa-times"></i></button>
+                </div>
+                <div id="interview-content" class="flex-1 overflow-y-auto space-y-4">
+                    <div class="text-sm text-gray-500">
+                        <p>通过 5 轮问答，AI 帮你对齐需求并生成 PRD。</p>
+                    </div>
+                </div>
+                <div class="mt-4 pt-4 border-t">
+                    <div id="interview-input-area">
+                        <textarea id="interview-input" class="w-full border rounded-lg px-3 py-2 text-sm mb-2" rows="2" placeholder="输入你的回答..."></textarea>
+                        <div class="flex justify-between items-center">
+                            <span id="interview-progress" class="text-xs text-gray-400">等待开始...</span>
+                            <button onclick="submitInterviewAnswer()" class="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700">
+                                提交
+                            </button>
+                        </div>
+                    </div>
+                    <div id="interview-done-area" class="hidden text-center py-2">
+                        <p class="text-green-600 text-sm font-bold mb-2"><i class="fas fa-check-circle mr-1"></i>访谈完成，PRD 已生成</p>
+                        <button onclick="closeInterview(); switchStage('prd'); loadStageFiles('prd');" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
+                            查看 PRD
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 飞书文档对话框 -->
+        <div id="feishu-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+            <div class="bg-white rounded-lg p-6 w-full max-w-md">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold"><i class="fas fa-cloud mr-2 text-indigo-600"></i>从飞书文档生成 PRD</h2>
+                    <button onclick="closeFeishuModal()" class="text-gray-500 hover:text-gray-700"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">文档 Token / URL</label>
+                        <input type="text" id="feishu-doc-token" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="飞书文档 token 或完整 URL">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">文档名称（用于文件名）</label>
+                        <input type="text" id="feishu-doc-name" class="w-full border rounded-lg px-3 py-2 text-sm" placeholder="例如：智能家居App需求">
+                    </div>
+                    <div class="flex justify-end space-x-3">
+                        <button onclick="closeFeishuModal()" class="px-4 py-2 text-gray-600 text-sm">取消</button>
+                        <button onclick="submitFeishuPRD()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">
+                            <i class="fas fa-magic mr-1"></i>生成 PRD
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 自动化测试执行对话框 -->
+        <div id="runtest-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+            <div class="bg-white rounded-lg p-6 w-full max-w-lg">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold"><i class="fas fa-play mr-2 text-green-600"></i>执行自动化测试</h2>
+                    <button onclick="closeRuntestModal()" class="text-gray-500 hover:text-gray-700"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">测试文件</label>
+                        <select id="runtest-file-select" class="w-full border rounded-lg px-3 py-2 text-sm">
+                            <option>请先上传测试用例</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">被测应用 URL</label>
+                        <input type="text" id="runtest-url" class="w-full border rounded-lg px-3 py-2 text-sm" value="http://localhost:8080">
+                    </div>
+                    <div id="runtest-status" class="hidden bg-gray-50 rounded-lg p-3">
+                        <p id="runtest-status-text" class="text-sm"><i class="fas fa-spinner fa-spin mr-1"></i>执行中...</p>
+                    </div>
+                    <div id="runtest-result" class="hidden">
+                        <div class="bg-gray-50 rounded-lg p-3 max-h-40 overflow-y-auto">
+                            <pre id="runtest-output" class="text-xs text-gray-600 whitespace-pre-wrap"></pre>
+                        </div>
+                    </div>
+                    <div class="flex justify-end space-x-3">
+                        <button onclick="closeRuntestModal()" class="px-4 py-2 text-gray-600 text-sm">关闭</button>
+                        <button onclick="submitRuntest()" class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">
+                            <i class="fas fa-play mr-1"></i>执行
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
